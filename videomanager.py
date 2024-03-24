@@ -29,6 +29,7 @@ class VideoManager:
         password = credentials['password']
         ip = credentials['ip']
         self.video_capture = cv2.VideoCapture(f"rtsp://{username}:{password}@{ip}/stream2")
+        self.video_capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         # Initialize variables to hold the latest frame and a lock for thread-safe operations
         self.latest_frame = None
         self.lock = Lock()
@@ -40,13 +41,14 @@ class VideoManager:
         """Read frames in a separate thread and update the latest frame."""
         def read_loop():
             while True:
+                time.sleep(0.01)
                 if self.video_capture.isOpened():
                     success, frame = self.video_capture.read()
                     if success:
                         with self.lock:
                             self.latest_frame = frame
         # Start the thread
-        #Thread(target=read_loop, daemon=True).start()
+        Thread(target=read_loop, daemon=True).start()
 
     async def grab_video_frame(self) -> Response:
         with self.lock:

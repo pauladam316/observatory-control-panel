@@ -11,6 +11,27 @@ import videomanager
 import commsmanager
 from dataclasses import dataclass
 
+
+
+class ToggleButton(ui.button):
+
+    def __init__(self,  *args, on_click=None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._state = False
+        self.on_click_callback = on_click
+        self.on('click', self.toggle)
+
+    def toggle(self) -> None:
+        """Toggle the button state."""
+        self._state = not self._state
+        self.update()
+        if self.on_click_callback:  # Check if the custom callback is provided
+            self.on_click_callback()  # Call the custom callback
+
+    def update(self) -> None:
+        self.props(f'color={"light-blue-10" if self._state else "primary"}')
+        super().update()
+
 @dataclass
 class RoofTelemUI:
     h_bridge_current_label: ui.label = ui.label('')
@@ -20,6 +41,32 @@ class RoofTelemUI:
     raise_2_sw_label: ui.label = ui.label('')
     lower_1_sw_label: ui.label = ui.label('')
     lower_2_sw_label: ui.label = ui.label('')
+
+@dataclass
+class RoofControlUI:
+    enable_roof_control_sw: ui.switch
+    raise_roof_btn: ToggleButton
+    stop_roof_btn: ui.button
+    lower_roof_btn: ToggleButton
+    engage_lock_btn: ToggleButton
+    stop_lock_btn: ui.button
+    disengage_lock_btn: ToggleButton
+
+def set_roof_buttons_state(roof_ui: RoofControlUI):
+    if not roof_ui.enable_roof_control_sw.value:
+        roof_ui.raise_roof_btn.disable()
+        roof_ui.stop_roof_btn.disable()
+        roof_ui.lower_roof_btn.disable()
+        roof_ui.engage_lock_btn.disable()
+        roof_ui.stop_lock_btn.disable()
+        roof_ui.disengage_lock_btn.disable()
+    else:
+        #TODO
+        pass
+
+
+def raise_roof(roof_ui: RoofControlUI):
+    set_roof_buttons_state(roof_ui)
 
 def update_telemetry(ui):
     roof_telem = roof_manager.get_telemetry()
@@ -37,6 +84,7 @@ class UI:
 
     def __init__(self):
         self.roof_telem_ui = RoofTelemUI()
+        self.roof_control_ui = None
         with ui.row().classes('w-full h-full justify-center'):
             with ui.column():
                 with ui.card().classes('w-full justify-center'):
@@ -47,21 +95,21 @@ class UI:
                         ui.label('Telescope Controller')
                         ui.label('CONNECTED')
                 with ui.card().classes('w-full justify-center'):
-                    switch = ui.switch('Enable Roof Control')
+                    roof_control_sw = ui.switch('Enable Roof Control', on_change=(lambda: set_roof_buttons_state(self.roof_control_ui)))
                     with ui.row().classes('w-full justify-between'):
                         ui.label('Roof Position')
                         ui.label('CLOSED')
                     with ui.row().classes('w-full'):
-                        ui.button('Raise').classes('flex-grow')
-                        ui.button('Stop').classes('flex-grow')
-                        ui.button('Lower').classes('flex-grow')
+                        roof_raise_btn = ToggleButton('Raise', on_click=(lambda: raise_roof(self.roof_control_ui))).classes('flex-grow')
+                        roof_stop_btn = ui.button('Stop').classes('flex-grow')
+                        roof_lower_btn = ui.button('Lower').classes('flex-grow')
                     with ui.row().classes('w-full justify-between'):
                         ui.label('Lock Position')
                         ui.label('ENGAGED')
                     with ui.row():
-                        ui.button('Engage')
-                        ui.button('Stop')
-                        ui.button('Disengage')
+                        lock_engage_btn = ui.button('Engage')
+                        lock_stop_btn = ui.button('Stop')
+                        lock_disengage_btn = ui.button('Disengage')
                 with ui.card().classes('w-full justify-center'):
                     with ui.row().classes('w-full justify-between'):
                         ui.label('Lens Cap Position')
@@ -135,7 +183,7 @@ class UI:
                         ui.label('L2 Position')
                         self.roof_telem_ui.lower_2_sw_label = ui.label()
         ui.timer(0.1, callback=lambda: update_telemetry(self.roof_telem_ui))
-
+        self.roof_control_ui = RoofControlUI(enable_roof_control_sw=roof_control_sw, raise_roof_btn=roof_raise_btn, stop_roof_btn=roof_stop_btn, lower_roof_btn=roof_lower_btn, engage_lock_btn=lock_engage_btn, stop_lock_btn=lock_stop_btn, disengage_lock_btn=lock_disengage_btn)
 
 roof_manager = commsmanager.RoofCommManager("/dev/tty.usbmodem143201")
 
