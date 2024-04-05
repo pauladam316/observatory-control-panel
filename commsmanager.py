@@ -1,14 +1,32 @@
 import serial
 import struct
 from dataclasses import dataclass
+from enum import Enum
+import traceback
 
 sent = False
 data_buffer = bytearray()
 
 MAX_BUFFER_SIZE = 1024
-PACKET_SIZE_BYTES = 19
 # Sync pattern to look for
 sync_pattern = "505050"
+
+class MotionState(Enum):
+    UNKNOWN = 0
+    RAISING = 1
+    LOWERING = 2
+    RAISED = 3
+    LOWERED = 4
+
+class RoofCommand(Enum):
+    CMD_RAISE_ROOF = 0xAB
+    CMD_LOWER_ROOF = 0xCD
+    CMD_STOP_ROOF = 0xEF
+    CMD_ENGAGE_LOCK = 0x12
+    CMD_DISENGAGE_LOCK = 0x34
+    STOP_LOCK = 0x56
+    CMD_HEARTBEAT = 0xF1
+
 @dataclass
 class RoofTelem:
     h_bridge_current: float = 0
@@ -18,7 +36,8 @@ class RoofTelem:
     raise_2_sw: bool = False
     lower_1_sw: bool = False
     lower_2_sw: bool = False
-
+    roof_state: MotionState = MotionState.UNKNOWN
+    lock_state: MotionState = MotionState.UNKNOWN
 
 class SerialManager:
     def __init__(self, device_path, packet_size_bytes):
@@ -27,6 +46,20 @@ class SerialManager:
         self.packet_size_bytes = packet_size_bytes
         self.port = None
         self.connected = False
+
+    def send_command(self, command):
+        if self.port is None or self.connected == False:
+            try:
+                self.port = serial.Serial(self.device_path, baudrate=57600, timeout=5)
+                self.connected = True
+                #set_roof_connected(True)
+            except Exception as e:
+                pass
+                #print(f"unable to open serial port with error {e}")
+                #set_roof_connected(False
+        else:
+            data = bytearray([0x50,0x50,0x50]) + bytearray([command.value])
+            self.port.write(data)
 
     def get_telemetry(self):
         if self.port is None or self.connected == False:
@@ -73,15 +106,46 @@ class SerialManager:
 
 class RoofCommManager(SerialManager):  
     def __init__(self, device_path):
-        super().__init__(device_path, 19)
+        super().__init__(device_path, 21)
         self.last_data = RoofTelem()
        
     def parse_data(self, packet: bytearray):
-        if len(packet) != PACKET_SIZE_BYTES-3:
+        if len(packet) != self.packet_size_bytes-3:
             print(f"Error! invalid packet size {len(packet)}")
-        struct_format = "fffBBBB"
+        struct_format = "fffBBBBBB"
         deserialized_data = RoofTelem(*struct.unpack(struct_format, packet))
+        deserialized_data.roof_state = MotionState(deserialized_data.roof_state)
+        deserialized_data.lock_state = MotionState(deserialized_data.lock_state)
+        self.last_data = deserialized_data
         return deserialized_data
+    
+    def raise_roof(self):
+        print("Enabling roof raise")
+        self.send_command(RoofCommand.CMD_RAISE_ROOF)
+
+    def lower_roof(self):
+        print("Enabling roof lower")
+        self.send_command(RoofCommand.CMD_LOWER_ROOF)
+
+    def stop_roof(self):
+        print("Stopping roof")
+        self.send_command(RoofCommand.CMD_STOP_ROOF)
+
+    def engage_lock(self):
+        print("Engaging Lock")
+        self.send_command(RoofCommand.CMD_ENGAGE_LOCK)
+
+    def disengage_lock(self):
+        print("Disengaging Lock")
+        self.send_command(RoofCommand.CMD_DISENGAGE_LOCK)
+
+    def stop_lock(self):
+        print("Stopping Lock")
+        self.send_command(RoofCommand.STOP_LOCK)
+
+    def update(self):
+        pass
+        self.send_command(RoofCommand.CMD_HEARTBEAT)
 
     def zero_data(self):
        return RoofTelem()
