@@ -10,8 +10,9 @@ import struct
 import videomanager
 import commsmanager
 from dataclasses import dataclass
+import capturemanager
 
-
+sky_cam_latest_path = "/var/www/html/allsky/images/latest.jpg" #"/Users/adampaul/latest.jpg"
 
 class ToggleButton(ui.button):
 
@@ -103,6 +104,10 @@ def set_roof_buttons_state(roof_ui: RoofControlUI):
     roof_ui.stop_lock_btn.set_enabled()
     roof_ui.disengage_lock_btn.set_enabled()
     
+def update_latest_photo(recent_image: ui.image):
+    changed = capturemanager.convert_fits_to_png()
+    if changed:
+        recent_image.force_reload() 
 
 # #TODO: control buttons based on state machine
 # def control_roof(roof_ui: RoofControlUI):
@@ -150,109 +155,125 @@ roof_manager = commsmanager.RoofCommManager("/dev/tty.usbmodem141201")
 
 class UI:
     def __init__(self):
+        dark = ui.dark_mode()
+        dark.enable()
         self.roof_telem_ui = RoofTelemUI()
         self.roof_control_ui = None
-        with ui.row().classes('w-full h-full justify-center'):
-            with ui.column():
-                with ui.card().classes('w-full justify-center'):
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Roof Controller')
-                        self.roof_connected = ui.label()
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Telescope Controller')
-                        ui.label('CONNECTED')
-                with ui.card().classes('w-full justify-center'):
-                    roof_control_sw = ui.switch('Enable Roof Control', on_change=(lambda: reset_roof_motion(self.roof_control_ui)))
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Roof Position')
-                        self.roof_telem_ui.roof_position_label = ui.label('')
+        with ui.card().style('align-self: center; width: fit-content;'):
+            with ui.row().classes('w-full h-full justify-center'):
+                with ui.column():
+                    with ui.card().classes('justify-center'):
+                                ui.label("Observatory Camera")
+                                observatory_video = ui.interactive_image()
+                                ui.timer(interval=0.1, callback=lambda: observatory_video.set_source(f'/video/frame/observatory_cam?{time.time()}'))
                     with ui.row().classes('w-full'):
-                        roof_raise_btn = ToggleButton('Raise', on_toggle_on=(lambda: roof_manager.raise_roof()), on_toggle_off=(lambda: stop_roof(self.roof_control_ui))).classes('flex-grow')
-                        roof_stop_btn = ui.button('Stop', on_click=(lambda: stop_roof(self.roof_control_ui))).classes('flex-grow')
-                        roof_lower_btn = ToggleButton('Lower', on_toggle_on=(lambda: roof_manager.lower_roof()), on_toggle_off=(lambda: stop_roof(self.roof_control_ui))).classes('flex-grow')
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Lock Position')
-                        self.roof_telem_ui.lock_position_label = ui.label('')
+                        with ui.column():
+                            with ui.card().classes('w-full justify-center'):
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('Roof Controller')
+                                    self.roof_connected = ui.label()
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('Telescope Controller')
+                                    ui.label('CONNECTED')
+                            with ui.card().classes('w-full justify-center'):
+                                roof_control_sw = ui.switch('Enable Roof Control', on_change=(lambda: reset_roof_motion(self.roof_control_ui)))
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('Roof Position')
+                                    self.roof_telem_ui.roof_position_label = ui.label('')
+                                with ui.row().classes('w-full'):
+                                    roof_raise_btn = ToggleButton('Raise', on_toggle_on=(lambda: roof_manager.raise_roof()), on_toggle_off=(lambda: stop_roof(self.roof_control_ui))).classes('flex-grow')
+                                    roof_stop_btn = ui.button('Stop', on_click=(lambda: stop_roof(self.roof_control_ui))).classes('flex-grow')
+                                    roof_lower_btn = ToggleButton('Lower', on_toggle_on=(lambda: roof_manager.lower_roof()), on_toggle_off=(lambda: stop_roof(self.roof_control_ui))).classes('flex-grow')
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('Lock Position')
+                                    self.roof_telem_ui.lock_position_label = ui.label('')
+                                with ui.row():
+                                    lock_engage_btn = ToggleButton('Engage', on_toggle_on=(lambda: roof_manager.engage_lock()), on_toggle_off=(lambda: stop_lock(self.roof_control_ui))).classes('flex-grow')
+                                    lock_stop_btn = ui.button('Stop',  on_click=(lambda: stop_lock(self.roof_control_ui)))
+                                    lock_disengage_btn = ToggleButton('Disengage', on_toggle_on=(lambda: roof_manager.disengage_lock()), on_toggle_off=(lambda: stop_lock(self.roof_control_ui))).classes('flex-grow')
+                            with ui.card().classes('w-full justify-center'):
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('Outside Temperature')
+                                    ui.label('1°C')
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('Humidity')
+                                    ui.label('80%')
+                           
+                        with ui.column().classes('flex-grow'):
+                            with ui.card().classes('w-full justify-center'):
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('Lens Cap Position')
+                                    ui.label('CLOSED')
+                                with ui.row().classes('w-full'):
+                                    ui.button('Open').classes('flex-grow')
+                                    ui.button('Stop').classes('flex-grow')
+                                    ui.button('Close').classes('flex-grow')
+                                switch = ui.switch('Flat Light')
+                            with ui.card().classes('w-full justify-center'):
+                                ui.label("Roof Control Debug Menu")
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('12V Voltage')
+                                    self.roof_telem_ui.voltage_12v_label = ui.label('')
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('5V Voltage')
+                                    self.roof_telem_ui.voltage_5v_label = ui.label('')
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('H-Bridge Current')
+                                    self.roof_telem_ui.h_bridge_current_label = ui.label('')
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('U1 Position')
+                                    self.roof_telem_ui.raise_1_sw_label = ui.label()
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('U2 Position')
+                                    self.roof_telem_ui.raise_2_sw_label = ui.label()
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('L1 Position')
+                                    self.roof_telem_ui.lower_1_sw_label = ui.label()
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('L2 Position')
+                                    self.roof_telem_ui.lower_2_sw_label = ui.label()
+                            
+                with ui.column():
                     with ui.row():
-                        lock_engage_btn = ToggleButton('Engage', on_toggle_on=(lambda: roof_manager.engage_lock()), on_toggle_off=(lambda: stop_lock(self.roof_control_ui))).classes('flex-grow')
-                        lock_stop_btn = ui.button('Stop',  on_click=(lambda: stop_lock(self.roof_control_ui)))
-                        lock_disengage_btn = ToggleButton('Disengage', on_toggle_on=(lambda: roof_manager.disengage_lock()), on_toggle_off=(lambda: stop_lock(self.roof_control_ui))).classes('flex-grow')
-                with ui.card().classes('w-full justify-center'):
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Lens Cap Position')
-                        ui.label('CLOSED')
-                    with ui.row().classes('w-full'):
-                        ui.button('Open').classes('flex-grow')
-                        ui.button('Stop').classes('flex-grow')
-                        ui.button('Close').classes('flex-grow')
-                    switch = ui.switch('Flat Light')
-            with ui.column():
-                with ui.card().classes('w-full justify-center'):
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Outside Temperature')
-                        ui.label('1°C')
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Humidity')
-                        ui.label('80%')
-                with ui.card().classes('w-full justify-center'):
-                    switch = ui.switch('Primary Mirror Heater').classes('flex-grow')
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Temperature')
-                        ui.label('3°C')
-                    with ui.row().classes('w-full'):
-                        ui.number(label='Setpoint').classes('flex-grow')
-                with ui.card().classes('w-full justify-center'):
-                    switch = ui.switch('Secondary Mirror Heater').classes('flex-grow')
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Temperature')
-                        ui.label('3°C')
-                    with ui.row().classes('w-full'):
-                        ui.number(label='Setpoint').classes('flex-grow')
-                with ui.card().classes('w-full justify-center'):
-                    switch = ui.switch('Guidescope Heater').classes('flex-grow')
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('Temperature')
-                        ui.label('3°C')
-                    with ui.row().classes('w-full'):
-                        ui.number(label='Setpoint').classes('flex-grow')
-            
-            with ui.column():
-                with ui.card().classes('w-full justify-center'):
-                    ui.label("Most Recent Image")
-                    ui.image('https://picsum.photos/id/377/640/360')
-                with ui.card().classes('w-full justify-center'):
-                    ui.label("Observatory Camera")
-                    observatory_video = ui.interactive_image().classes('w-full h-full')
-                    ui.timer(interval=0.1, callback=lambda: observatory_video.set_source(f'/video/frame/observatory_cam?{time.time()}'))
+                        with ui.column():
+                            with ui.card().classes('justify-center'):
+                                ui.label("Most Recent Image")
+                                recent_image = ui.image(capturemanager.converted_path).props(f"width=900px")
+                                ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
+                            with ui.row().classes('w-full'):
+                                with ui.card().classes('flex-grow'):
+                                        switch = ui.switch('Primary Mirror Heater').classes('flex-grow')
+                                        with ui.row().classes('w-full justify-between'):
+                                            ui.label('Temperature')
+                                            ui.label('3°C')
+                                        with ui.row().classes('w-full'):
+                                            ui.number(label='Setpoint').classes('flex-grow')
+                                with ui.card().classes('flex-grow'):
+                                    switch = ui.switch('Secondary Mirror Heater').classes('flex-grow')
+                                    with ui.row().classes('w-full justify-between'):
+                                        ui.label('Temperature')
+                                        ui.label('3°C')
+                                    with ui.row().classes('w-full'):
+                                        ui.number(label='Setpoint').classes('flex-grow')
+                                with ui.card().classes('flex-grow'):
+                                    switch = ui.switch('Guidescope Heater').classes('flex-grow')
+                                    with ui.row().classes('w-full justify-between'):
+                                        ui.label('Temperature')
+                                        ui.label('3°C')
+                                    with ui.row().classes('w-full'):
+                                        ui.number(label='Setpoint').classes('flex-grow')
 
-                    #ui.label("Sky Camera")
-                #self.sky_video = ui.interactive_image().classes('w-full h-full')
-                #ui.timer(interval=0.1, callback=lambda: self.sky_video.set_source(f'/video/frame?{time.time()}'))
-            
-            with ui.column():
-                with ui.card().classes('w-full justify-center'):
-                    ui.label("Roof Control Debug Menu")
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('12V Voltage')
-                        self.roof_telem_ui.voltage_12v_label = ui.label('')
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('5V Voltage')
-                        self.roof_telem_ui.voltage_5v_label = ui.label('')
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('H-Bridge Current')
-                        self.roof_telem_ui.h_bridge_current_label = ui.label('')
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('U1 Position')
-                        self.roof_telem_ui.raise_1_sw_label = ui.label()
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('U2 Position')
-                        self.roof_telem_ui.raise_2_sw_label = ui.label()
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('L1 Position')
-                        self.roof_telem_ui.lower_1_sw_label = ui.label()
-                    with ui.row().classes('w-full justify-between'):
-                        ui.label('L2 Position')
-                        self.roof_telem_ui.lower_2_sw_label = ui.label()
+                        with ui.card().classes('justify-center'):
+                            ui.label("Sky View")
+                            sky_view = ui.image(sky_cam_latest_path).props(f"width=800px")
+                            ui.timer(interval=30, callback=lambda: sky_view.force_reload())
+                   
+                        #ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
+                        #ui.label("Sky Camera")
+                    #self.sky_video = ui.interactive_image().classes('w-full h-full')
+                    #ui.timer(interval=0.1, callback=lambda: self.sky_video.set_source(f'/video/frame?{time.time()}'))
+
+                    
         ui.timer(0.1, callback=lambda: update_telemetry(self.roof_telem_ui))
         ui.timer(0.1, callback=lambda: roof_manager.update())
         
