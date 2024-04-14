@@ -12,6 +12,7 @@ import commsmanager
 from dataclasses import dataclass
 import capturemanager
 
+dev_mode = True
 sky_cam_latest_path = "/var/www/html/allsky/images/latest.jpg" #"/Users/adampaul/latest.jpg"
 
 class ToggleButton(ui.button):
@@ -128,13 +129,13 @@ def stop_roof(roof_ui: RoofControlUI):
     roof_ui.raise_roof_btn.button.turn_off()
     roof_ui.lower_roof_btn.button.turn_off()
     roof_manager.stop_roof()
-    roof_ui.enable_roof_control_sw.value = False
+    disable_roof_control()
 
 def stop_lock(roof_ui: RoofControlUI):
     roof_ui.engage_lock_btn.button.turn_off()
     roof_ui.disengage_lock_btn.button.turn_off()
     roof_manager.stop_lock()
-    roof_ui.enable_roof_control_sw.value = False
+    disable_roof_control()
 
 def update_telemetry(ui: RoofTelemUI):
     last_telemetry = roof_manager.get_telemetry()
@@ -149,9 +150,10 @@ def update_telemetry(ui: RoofTelemUI):
     ui.lock_position_label.text = format_motion_state(last_telemetry.lock_state)
     set_roof_connected(roof_manager.connected)
 
+def disable_roof_control():
+    web_ui.roof_control_ui.enable_roof_control_sw.value = False
 
-
-roof_manager = commsmanager.RoofCommManager("/dev/tty.usbmodem141201")
+roof_manager = commsmanager.RoofCommManager("/dev/tty.usbmodem143201")
 
 class UI:
     def __init__(self):
@@ -239,7 +241,8 @@ class UI:
                             with ui.card().classes('justify-center'):
                                 ui.label("Most Recent Image")
                                 recent_image = ui.image(capturemanager.converted_path).props(f"width=900px")
-                                ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
+                                if not dev_mode:
+                                    ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
                             with ui.row().classes('w-full'):
                                 with ui.card().classes('flex-grow'):
                                         switch = ui.switch('Primary Mirror Heater').classes('flex-grow')
@@ -266,7 +269,8 @@ class UI:
                         with ui.card().classes('justify-center'):
                             ui.label("Sky View")
                             sky_view = ui.image(sky_cam_latest_path).props(f"width=800px")
-                            ui.timer(interval=30, callback=lambda: sky_view.force_reload())
+                            if not dev_mode:
+                                ui.timer(interval=30, callback=lambda: sky_view.force_reload())
                    
                         #ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
                         #ui.label("Sky Camera")
@@ -301,6 +305,11 @@ class UI:
         self.roof_control_ui.disengage_lock_btn.add_condition(lambda: roof_manager.last_data.lock_state != commsmanager.MotionState.RAISING)
 
         ui.timer(0.1, callback=lambda: set_roof_buttons_state(self.roof_control_ui))
+
+        roof_manager.on_raised(disable_roof_control)
+        roof_manager.on_lowered(disable_roof_control)
+        roof_manager.on_locked(disable_roof_control)
+        roof_manager.on_unlocked(disable_roof_control)
 
 
 def format_voltage(voltage):

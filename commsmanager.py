@@ -108,7 +108,11 @@ class RoofCommManager(SerialManager):
     def __init__(self, device_path):
         super().__init__(device_path, 21)
         self.last_data = RoofTelem()
-       
+        self.on_raised_callbacks = []
+        self.on_lowered_callbacks = []
+        self.on_locked_callbacks = []
+        self.on_unlocked_callbacks = []
+
     def parse_data(self, packet: bytearray):
         if len(packet) != self.packet_size_bytes-3:
             print(f"Error! invalid packet size {len(packet)}")
@@ -116,9 +120,34 @@ class RoofCommManager(SerialManager):
         deserialized_data = RoofTelem(*struct.unpack(struct_format, packet))
         deserialized_data.roof_state = MotionState(deserialized_data.roof_state)
         deserialized_data.lock_state = MotionState(deserialized_data.lock_state)
+        if deserialized_data.roof_state == MotionState.RAISED and deserialized_data.roof_state != self.last_data.roof_state:
+            for callback in self.on_raised_callbacks:
+                callback()
+        if deserialized_data.roof_state == MotionState.LOWERED and deserialized_data.roof_state != self.last_data.roof_state:
+            for callback in self.on_lowered_callbacks:
+                callback()
+        if deserialized_data.lock_state == MotionState.RAISED and deserialized_data.lock_state != self.last_data.lock_state:
+            for callback in self.on_locked_callbacks:
+                callback()
+        if deserialized_data.lock_state == MotionState.LOWERED and deserialized_data.lock_state != self.last_data.lock_state:
+            for callback in self.on_unlocked_callbacks:
+                callback()
+
         self.last_data = deserialized_data
         return deserialized_data
     
+    def on_raised(self, callback):
+        self.on_raised_callbacks.append(callback)
+
+    def on_lowered(self, callback):
+        self.on_lowered_callbacks.append(callback)
+
+    def on_locked(self, callback):
+        self.on_locked_callbacks.append(callback)
+
+    def on_unlocked(self, callback):
+        self.on_unlocked_callbacks.append(callback)
+
     def raise_roof(self):
         print("Enabling roof raise")
         self.send_command(RoofCommand.CMD_RAISE_ROOF)
