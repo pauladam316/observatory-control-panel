@@ -10,6 +10,7 @@ import struct
 from dataclasses import dataclass
 import yaml
 from threading import Thread, Lock
+from pathlib import Path
 
 class VideoManager:
     # In case you don't have a webcam, this will provide a black placeholder image.
@@ -62,8 +63,9 @@ class VideoManager:
         return Response(content=jpeg, media_type='image/jpeg')
 
 # Dictionary to hold VideoManager instances
+yaml_file = Path(__file__).resolve().parent / "observatory_cam.yaml"
 video_managers = {
-    "observatory_cam": VideoManager("observatory_cam.yaml"),
+    "observatory_cam": VideoManager(yaml_file),
     #"cloud_cam": VideoManager("rtsp://your_second_camera_url"),
     # Add more cameras as needed
 }

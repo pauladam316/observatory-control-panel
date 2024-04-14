@@ -157,7 +157,7 @@ class RoofCommManager(SerialManager):
         self.send_command(RoofCommand.CMD_LOWER_ROOF)
 
     def stop_roof(self):
-        print("Stopping roof")
+        #print("Stopping roof")
         self.send_command(RoofCommand.CMD_STOP_ROOF)
 
     def engage_lock(self):
