@@ -55,9 +55,20 @@ def convert_fits_to_png():
     # Convert to PIL image
     image = Image.fromarray(image_uint8)
 
+    original_width, original_height = image.size
+    
+    # New width
+    new_width = 900
+    
+    # Calculate the new height maintaining the aspect ratio
+    new_height = int(new_width * original_height / original_width)
+    
+    # Resize the image
+    resized_img = image.resize((new_width, new_height), Image.LANCZOS)
+
     
     # Save the image as PNG
-    image.save(converted_path)
+    resized_img.save(converted_path, 'PNG')
     last_converted = recent_fits
 
 

@@ -12,7 +12,7 @@ import commsmanager
 from dataclasses import dataclass
 import capturemanager
 
-#dev_mode = True
+dev_mode = False
 sky_cam_latest_path = "/var/www/html/allsky/images/latest.jpg" #"/Users/adampaul/latest.jpg"
 
 class ToggleButton(ui.button):
