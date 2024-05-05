@@ -6,11 +6,57 @@ import shutil
 import numpy as np
 
 # Cache to store paths of converted images
-converted_path = "/home/observatory/capture-tmp/capture.png" #"/Users/adampaul/capture-tmp/capture.png"
+converted_path = "/Users/adampaul/capture-tmp/capture.png" #"/home/observatory/capture-tmp/capture.png" #
 last_converted = None
-source_dir = "/home/observatory/m106/M_106/Light" #/Users/adampaul/Local Documents/Astrophotography/Pixinsight Processing/M106/Raw"
+source_dir = "/Users/adampaul/Local Documents/Astrophotography/Pixinsight Processing/Rosette/" # "/home/observatory/m106/M_106/Light" #
 
-def convert_fits_to_png():
+
+def convert_fits_to_png(self, file):
+
+    # Load the FITS file
+    with fits.open(file) as hdul:
+        image_data = hdul[0].data
+
+    image_data = np.nan_to_num(image_data)
+
+    # Calculate the histogram of the image data
+    histogram, bin_edges = np.histogram(image_data.flatten(), bins='auto', density=True)
+
+    # Compute cumulative distribution from the histogram
+    cdf = histogram.cumsum()
+    cdf_normalized = cdf / cdf[-1]  # Normalize
+
+    # Determine clipping points (e.g., 0.25% and 99.75%)
+    cdf_min = np.searchsorted(cdf_normalized, 0.0025)
+    cdf_max = np.searchsorted(cdf_normalized, 0.9975)
+
+    # Clip the image data to these points and scale to 0-255
+    clipped_data = np.clip(image_data, bin_edges[cdf_min], bin_edges[cdf_max])
+    scaled_data = (clipped_data - bin_edges[cdf_min]) / (bin_edges[cdf_max] - bin_edges[cdf_min]) * 255
+    image_uint8 = scaled_data.astype(np.uint8)
+
+    # Convert to PIL image
+    image = Image.fromarray(image_uint8)
+
+    original_width, original_height = image.size
+    
+    # New width
+    new_width = 900
+    
+    # Calculate the new height maintaining the aspect ratio
+    new_height = int(new_width * original_height / original_width)
+    
+    # Resize the image
+    resized_img = image.resize((new_width, new_height), Image.LANCZOS)
+
+    
+    # Save the image as PNG
+    resized_img.save(converted_path, 'PNG')
+
+
+    return True
+
+def convert_latest_fits_to_png(self):
     global last_converted
     # Ensure the temp directory exists
     temp_dir = os.path.join(source_dir, 'temp')

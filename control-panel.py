@@ -11,9 +11,10 @@ import videomanager
 import commsmanager
 from dataclasses import dataclass
 import capturemanager
+import customui
 
-dev_mode = False
-sky_cam_latest_path = "/var/www/html/allsky/images/latest.jpg" #"/Users/adampaul/latest.jpg"
+dev_mode = True
+sky_cam_latest_path = "/Users/adampaul/latest.jpg" #"/var/www/html/allsky/images/latest.jpg" 
 
 class ToggleButton(ui.button):
 
@@ -153,7 +154,7 @@ def update_telemetry(ui: RoofTelemUI):
 def disable_roof_control():
     web_ui.roof_control_ui.enable_roof_control_sw.value = False
 
-roof_manager = commsmanager.RoofCommManager("/dev/tty.usbmodem143201")
+roof_manager = commsmanager.RoofCommManager("/dev/tty.usbmodem142201")
 
 class UI:
     def __init__(self):
@@ -240,9 +241,33 @@ class UI:
                         with ui.column():
                             with ui.card().classes('justify-center'):
                                 ui.label("Most Recent Image")
-                                recent_image = ui.image(capturemanager.converted_path).props(f"width=900px")
+                                recent_image = customui.FITSViewer().props(f"width=900px") #ui.image(capturemanager.converted_path).props(f"width=900px")
+                                # if not dev_mode:
+                                #     ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
+                            with ui.card().classes('w-full'):
+                                with ui.row().classes('w-full'):
+                                    with ui.column().classes('w-1/2 justify-center'):
+                                        ui.label("File Browser")
+                                        with ui.scroll_area().classes('w-full'):
+                                            customui.FileBrowser("/Users/adampaul/Local Documents/Astrophotography/M106/Raw", on_file_selected=recent_image.convert_fits_to_png).props('dense separator').classes('w-full')
+                                    with ui.column().classes('flex-grow justify-center h-full'):
+                                        ui.input("Server Image Path").classes('w-full')
+                                        ui.input("Local Sync Path").classes('w-full')
+                                        with ui.row().classes('w-full'):
+                                            ui.switch("Sync Files")
+                                            ui.switch("Show Most Recent")
+                                        with ui.row().classes('w-full align-items-center'):
+                                            ui.spinner(size='lg').classes('my-auto')
+                                            with ui.column().classes('my-auto'):
+                                                ui.label("Transferring M_106_LIGHT_1101.FITS")
+                                                ui.label("Download Speed: 22MB/s")
+                                      
+                        with ui.column():
+                            with ui.card().classes('justify-center'):
+                                ui.label("Sky View")
+                                sky_view = ui.image(sky_cam_latest_path).props(f"width=800px")
                                 if not dev_mode:
-                                    ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
+                                    ui.timer(interval=30, callback=lambda: sky_view.force_reload())
                             with ui.row().classes('w-full'):
                                 with ui.card().classes('flex-grow'):
                                         switch = ui.switch('Primary Mirror Heater').classes('flex-grow')
@@ -265,12 +290,6 @@ class UI:
                                         ui.label('3°C')
                                     with ui.row().classes('w-full'):
                                         ui.number(label='Setpoint').classes('flex-grow')
-
-                        with ui.card().classes('justify-center'):
-                            ui.label("Sky View")
-                            sky_view = ui.image(sky_cam_latest_path).props(f"width=800px")
-                            if not dev_mode:
-                                ui.timer(interval=30, callback=lambda: sky_view.force_reload())
                    
                         #ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
                         #ui.label("Sky Camera")
