@@ -249,7 +249,8 @@ class UI:
                                     with ui.column().classes('w-1/2 justify-center'):
                                         ui.label("File Browser")
                                         with ui.scroll_area().classes('w-full'):
-                                            customui.FileBrowser("/Users/adampaul/Local Documents/Astrophotography/M106/Raw", on_file_selected=recent_image.convert_fits_to_png).props('dense separator').classes('w-full')
+                                            browser = customui.FileBrowser("/Users/adampaul/Local Documents/Astrophotography/M106/Raw", on_file_selected=recent_image.convert_fits_to_png).props('dense separator').classes('w-full')
+                                            ui.timer(interval=2, callback=browser.get_items_in_dir)
                                     with ui.column().classes('flex-grow justify-center h-full'):
                                         ui.input("Server Image Path").classes('w-full')
                                         ui.input("Local Sync Path").classes('w-full')

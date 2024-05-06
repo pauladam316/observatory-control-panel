@@ -1,4 +1,4 @@
-from nicegui import ui
+from nicegui import ui, app
 import os
 import datetime
 import tempfile
@@ -30,7 +30,7 @@ class SelectableListItem(ui.button):
         days = hours / 24
         return f"{int(days)} days ago"
 
-    def __init__(self, file, on_click=None) -> None:
+    def __init__(self, file, on_click=None, selected=False) -> None:
         super().__init__()
         self._state = False
         self.on('click', self.toggle)
@@ -40,6 +40,10 @@ class SelectableListItem(ui.button):
         with self:
             ui.label(file[0]).classes('mr-auto')
             ui.label(self.get_readable_time_since_last_modified(file[1])).classes('ml-auto')
+        
+        if selected:
+            self._state = True
+            self.update()
 
     def toggle(self) -> None:
         """Toggle the button state."""
@@ -68,30 +72,40 @@ class FileBrowser(ui.list):
             raise Exception(f"Error: The directory '{directory}' does not exist.")
 
         # List all files in the directory
+        self.directory = directory
+        self.clicked_file = None
+        self.get_items_in_dir()
+
+        self.on_file_selected = on_file_selected
+        
+
+    def get_items_in_dir(self):
+        # List all files in the directory
+        self.clear()
         files = []
         self.items = []
-        self.directory = directory
-        for entry in os.listdir(directory):
+        for entry in os.listdir(self.directory):
             # Join the directory path and entry name to get full path
-            full_path = os.path.join(directory, entry)
+            full_path = os.path.join(self.directory, entry)
             # Check if the entry is a file and add to list
             if os.path.isfile(full_path) and entry.endswith('.fits'):
                 files.append((os.path.basename(entry), os.path.getmtime(full_path)))
-
+        
         files.sort(key=lambda x: x[1], reverse=True)
         with self:
             ui.separator()
             for file in files:
-                self.items.append(SelectableListItem(file, on_click=self.item_clicked).classes("w-full"))
+                self.items.append(SelectableListItem(file, on_click=self.item_clicked, selected=self.clicked_file==file[0]).classes("w-full"))
                 ui.separator()
 
-        self.on_file_selected = on_file_selected
 
     def item_clicked(self, item):
+        self.clicked_file = item.file
         for element in self.items:
             if element != item and element.is_clicked():
                 element.unclick()
         self.on_file_selected(os.path.join(self.directory, item.file))
+        
         
     def add_item():
         print("item added")
