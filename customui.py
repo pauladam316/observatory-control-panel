@@ -41,7 +41,7 @@ class SelectableListItem(ui.button):
             ui.label(file[0]).classes('mr-auto')
             ui.label(self.get_readable_time_since_last_modified(file[1])).classes('ml-auto')
         
-        if selected:
+        if selected: #when refreshing the file browser, keep selected files selected
             self._state = True
             self.update()
 
@@ -63,21 +63,24 @@ class SelectableListItem(ui.button):
         self._state = False
         self.update()
 
+
 class FileBrowser(ui.list):
-    def __init__(self, directory: str, on_file_selected, *args,  **kwargs) -> None:
 
+    def __init__(self, on_file_selected, *args,  **kwargs) -> None:
+       
         super().__init__(*args,  **kwargs)
-
-        if not os.path.exists(directory):
-            raise Exception(f"Error: The directory '{directory}' does not exist.")
-
-        # List all files in the directory
-        self.directory = directory
+        
+        self.directory="/Users/adampaul/Local Documents/Astrophotography/M106/Raw"
+        
         self.clicked_file = None
         self.get_items_in_dir()
 
         self.on_file_selected = on_file_selected
         
+    def set_dir(self, directory):
+        if os.path.isdir(directory):
+            self.directory = directory
+            self.get_items_in_dir()
 
     def get_items_in_dir(self):
         # List all files in the directory

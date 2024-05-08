@@ -240,7 +240,7 @@ class UI:
                     with ui.row():
                         with ui.column():
                             with ui.card().classes('justify-center'):
-                                ui.label("Most Recent Image")
+                                ui.label("Image Viewer")
                                 recent_image = customui.FITSViewer().props(f"width=900px") #ui.image(capturemanager.converted_path).props(f"width=900px")
                                 # if not dev_mode:
                                 #     ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
@@ -248,20 +248,16 @@ class UI:
                                 with ui.row().classes('w-full'):
                                     with ui.column().classes('w-1/2 justify-center'):
                                         ui.label("File Browser")
+                                        
                                         with ui.scroll_area().classes('w-full'):
-                                            browser = customui.FileBrowser("/Users/adampaul/Local Documents/Astrophotography/M106/Raw", on_file_selected=recent_image.convert_fits_to_png).props('dense separator').classes('w-full')
+                                            browser = customui.FileBrowser(on_file_selected=recent_image.convert_fits_to_png).props('dense separator').classes('w-full')
                                             ui.timer(interval=2, callback=browser.get_items_in_dir)
                                     with ui.column().classes('flex-grow justify-center h-full'):
-                                        ui.input("Server Image Path").classes('w-full')
-                                        ui.input("Local Sync Path").classes('w-full')
+                                        ui.input("Server Image Path", 
+                                                value=browser.directory,
+                                                on_change=lambda e: browser.set_dir(e.value)).classes('w-full')
                                         with ui.row().classes('w-full'):
-                                            ui.switch("Sync Files")
                                             ui.switch("Show Most Recent")
-                                        with ui.row().classes('w-full align-items-center'):
-                                            ui.spinner(size='lg').classes('my-auto')
-                                            with ui.column().classes('my-auto'):
-                                                ui.label("Transferring M_106_LIGHT_1101.FITS")
-                                                ui.label("Download Speed: 22MB/s")
                                       
                         with ui.column():
                             with ui.card().classes('justify-center'):
@@ -297,7 +293,6 @@ class UI:
                     #self.sky_video = ui.interactive_image().classes('w-full h-full')
                     #ui.timer(interval=0.1, callback=lambda: self.sky_video.set_source(f'/video/frame?{time.time()}'))
 
-                    
         ui.timer(0.1, callback=lambda: update_telemetry(self.roof_telem_ui))
         ui.timer(0.1, callback=lambda: roof_manager.update())
         
