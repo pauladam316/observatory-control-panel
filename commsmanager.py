@@ -18,6 +18,15 @@ class MotionState(Enum):
     RAISED = 3
     LOWERED = 4
 
+class HeaterState(Enum):
+    STATE_OFF = 0
+    STATE_ON = 1
+
+class GenericControllerState(Enum):
+    STATE_OFF = 0
+    STATE_ON = 1
+    STATE_UNDEF = 2
+
 class RoofCommand(Enum):
     CMD_RAISE_ROOF = 0xAB
     CMD_LOWER_ROOF = 0xCD
@@ -26,6 +35,18 @@ class RoofCommand(Enum):
     CMD_DISENGAGE_LOCK = 0x34
     STOP_LOCK = 0x56
     CMD_HEARTBEAT = 0xF1
+
+class TelescopeCommand(Enum):
+    HEATER_1_ENABLE = 0x01
+    HEATER_1_DISABLE = 0x02
+    HEATER_2_ENABLE = 0x03
+    HEATER_2_DISABLE = 0x04
+    HEATER_3_ENABLE = 0x05
+    HEATER_3_DISABLE = 0x06
+    LENS_CAP_OPEN = 0x07
+    LENS_CAP_CLOSE = 0x08
+    LIGHT_ON = 0x09
+    LIGHT_OFF = 0x0A
 
 @dataclass
 class RoofTelem:
@@ -38,6 +59,28 @@ class RoofTelem:
     lower_2_sw: bool = False
     roof_state: MotionState = MotionState.UNKNOWN
     lock_state: MotionState = MotionState.UNKNOWN
+
+@dataclass
+class TelescopeTelem:
+    temp_1: float = 0
+    temp_2: float = 0
+    temp_3: float = 0
+    temp_ref: float = 0
+    heater_1_driver_state: GenericControllerState = GenericControllerState.STATE_UNDEF
+    heater_1_manual_state:  GenericControllerState = GenericControllerState.STATE_UNDEF
+    heater_1_real_state: HeaterState = HeaterState.STATE_OFF
+    heater_2_driver_state: GenericControllerState = GenericControllerState.STATE_UNDEF
+    heater_2_manual_state:  GenericControllerState = GenericControllerState.STATE_UNDEF
+    heater_2_real_state: HeaterState = HeaterState.STATE_OFF
+    heater_3_driver_state: GenericControllerState = GenericControllerState.STATE_UNDEF
+    heater_3_manual_state:  GenericControllerState = GenericControllerState.STATE_UNDEF
+    heater_3_real_state: HeaterState = HeaterState.STATE_OFF
+    flat_light_driver_state: GenericControllerState = GenericControllerState.STATE_UNDEF
+    flat_light_manual_state: GenericControllerState = GenericControllerState.STATE_UNDEF
+    flat_light_real_state: GenericControllerState = GenericControllerState.STATE_UNDEF
+    lens_cap_driver_state: GenericControllerState = GenericControllerState.STATE_UNDEF
+    lens_cap_manual_state: GenericControllerState = GenericControllerState.STATE_UNDEF
+    lens_cap_real_state: GenericControllerState = GenericControllerState.STATE_UNDEF
 
 class SerialManager:
     def __init__(self, device_path, packet_size_bytes):
@@ -103,6 +146,17 @@ class SerialManager:
                 #set_roof_connected(False)
             return self.last_data
 
+class TelescopeCommManager(SerialManager):
+    def __init__(self, device_path):
+        super().__init__(device_path, 34)
+        self.last_data = TelescopeTelem()
+    
+    def parse_data(self, packet: bytearray):
+        if len(packet) != self.packet_size_bytes-3:
+            print(f"Error! invalid packet size {len(packet)}")
+        struct_format = "ffffBBBBBBBBBBBBBBB"
+        deserialized_data = TelescopeTelem(*struct.unpack(struct_format, packet))
+        return deserialized_data
 
 class RoofCommManager(SerialManager):  
     def __init__(self, device_path):
@@ -112,6 +166,7 @@ class RoofCommManager(SerialManager):
         self.on_lowered_callbacks = []
         self.on_locked_callbacks = []
         self.on_unlocked_callbacks = []
+        
 
     def parse_data(self, packet: bytearray):
         if len(packet) != self.packet_size_bytes-3:

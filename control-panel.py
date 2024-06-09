@@ -7,11 +7,13 @@ import numpy as np
 import serial
 from fastapi_utils.tasks import repeat_every
 import struct
-import videomanager
+#import videomanager
 import commsmanager
 from dataclasses import dataclass
 import capturemanager
 import customui
+import plotly.graph_objs as go
+import asyncio
 
 dev_mode = True
 sky_cam_latest_path = "/Users/adampaul/latest.jpg" #"/var/www/html/allsky/images/latest.jpg" 
@@ -139,6 +141,7 @@ def stop_lock(roof_ui: RoofControlUI):
     disable_roof_control()
 
 def update_telemetry(ui: RoofTelemUI):
+    telescope_manager.get_telemetry()
     last_telemetry = roof_manager.get_telemetry()
     ui.voltage_12v_label.text = format_voltage(last_telemetry.voltage_12v)
     ui.h_bridge_current_label.text = format_current(last_telemetry.h_bridge_current)
@@ -155,6 +158,7 @@ def disable_roof_control():
     web_ui.roof_control_ui.enable_roof_control_sw.value = False
 
 roof_manager = commsmanager.RoofCommManager("/dev/tty.usbmodem142201")
+telescope_manager = commsmanager.TelescopeCommManager("/dev/tty.usbserial-B0004EQV")
 
 class UI:
     def __init__(self):
@@ -162,13 +166,14 @@ class UI:
         dark.enable()
         self.roof_telem_ui = RoofTelemUI()
         self.roof_control_ui = None
+        self.temperature_graph = None
         with ui.card().style('align-self: center; width: fit-content;'):
             with ui.row().classes('w-full h-full justify-center'):
                 with ui.column():
                     with ui.card().classes('justify-center'):
                                 ui.label("Observatory Camera")
-                                observatory_video = ui.interactive_image()
-                                ui.timer(interval=0.1, callback=lambda: observatory_video.set_source(f'/video/frame/observatory_cam?{time.time()}'))
+                                #observatory_video = ui.interactive_image()
+                                #ui.timer(interval=0.1, callback=lambda: observatory_video.set_source(f'/video/frame/observatory_cam?{time.time()}'))
                     with ui.row().classes('w-full'):
                         with ui.column():
                             with ui.card().classes('w-full justify-center'):
@@ -204,14 +209,17 @@ class UI:
                            
                         with ui.column().classes('flex-grow'):
                             with ui.card().classes('w-full justify-center'):
+                                ui.switch('Lens Cap', on_change=(lambda e: telescope_manager.send_command(commsmanager.TelescopeCommand.LENS_CAP_OPEN if e.value == 1 else commsmanager.TelescopeCommand.LENS_CAP_CLOSE)))
                                 with ui.row().classes('w-full justify-between'):
-                                    ui.label('Lens Cap Position')
-                                    ui.label('CLOSED')
-                                with ui.row().classes('w-full'):
-                                    ui.button('Open').classes('flex-grow')
-                                    ui.button('Stop').classes('flex-grow')
-                                    ui.button('Close').classes('flex-grow')
-                                switch = ui.switch('Flat Light')
+                                    ui.label('State:')
+                                    lens_cap_state = customui.LensCapStateLabel()
+                                    ui.timer(0.1, callback=lambda: lens_cap_state.update_text(telescope_manager.last_data.lens_cap_driver_state, telescope_manager.last_data.lens_cap_manual_state, telescope_manager.last_data.lens_cap_real_state))
+                            with ui.card().classes('w-full justify-center'):
+                                ui.switch('Flat Light', on_change=(lambda e: telescope_manager.send_command(commsmanager.TelescopeCommand.LIGHT_ON if e.value == 1 else commsmanager.TelescopeCommand.LIGHT_OFF)))
+                                with ui.row().classes('w-full justify-between'):
+                                    ui.label('State:')
+                                    lens_cap_state = customui.FlatLightLabel()
+                                    ui.timer(0.1, callback=lambda: lens_cap_state.update_text(telescope_manager.last_data.flat_light_driver_state, telescope_manager.last_data.flat_light_manual_state, telescope_manager.last_data.flat_light_real_state))
                             with ui.card().classes('w-full justify-center'):
                                 ui.label("Roof Control Debug Menu")
                                 with ui.row().classes('w-full justify-between'):
@@ -266,28 +274,30 @@ class UI:
                                 if not dev_mode:
                                     ui.timer(interval=30, callback=lambda: sky_view.force_reload())
                             with ui.row().classes('w-full'):
-                                with ui.card().classes('flex-grow'):
-                                        switch = ui.switch('Primary Mirror Heater').classes('flex-grow')
-                                        with ui.row().classes('w-full justify-between'):
-                                            ui.label('Temperature')
-                                            ui.label('3°C')
-                                        with ui.row().classes('w-full'):
-                                            ui.number(label='Setpoint').classes('flex-grow')
-                                with ui.card().classes('flex-grow'):
-                                    switch = ui.switch('Secondary Mirror Heater').classes('flex-grow')
-                                    with ui.row().classes('w-full justify-between'):
-                                        ui.label('Temperature')
-                                        ui.label('3°C')
+                                with ui.card().classes('w-full'):
                                     with ui.row().classes('w-full'):
-                                        ui.number(label='Setpoint').classes('flex-grow')
-                                with ui.card().classes('flex-grow'):
-                                    switch = ui.switch('Guidescope Heater').classes('flex-grow')
-                                    with ui.row().classes('w-full justify-between'):
-                                        ui.label('Temperature')
-                                        ui.label('3°C')
-                                    with ui.row().classes('w-full'):
-                                        ui.number(label='Setpoint').classes('flex-grow')
-                   
+                                        with ui.column().classes('w-1/4 justify-center'):
+                                            ui.label('Heaters')
+                                            with ui.card().classes("w-full"):
+                                                ui.switch('Primary', on_change=(lambda e: telescope_manager.send_command(commsmanager.TelescopeCommand.HEATER_1_ENABLE if e.value == 1 else commsmanager.TelescopeCommand.HEATER_1_DISABLE)))
+                                                with ui.row().classes('w-full justify-between'):
+                                                    ui.label('State:')
+                                                    heater_1_state = customui.HeaterStateLabel()
+                                                    ui.timer(0.1, callback=lambda: heater_1_state.update_text(telescope_manager.last_data.heater_1_driver_state, telescope_manager.last_data.heater_1_manual_state, telescope_manager.last_data.heater_1_real_state))
+                                            with ui.card().classes("w-full"):
+                                                ui.switch('Secondary', on_change=(lambda e: telescope_manager.send_command(commsmanager.TelescopeCommand.HEATER_2_ENABLE if e.value == 1 else commsmanager.TelescopeCommand.HEATER_2_DISABLE)))
+                                                with ui.row().classes('w-full justify-between'):
+                                                    ui.label('State:')
+                                                    heater_2_state = customui.HeaterStateLabel()
+                                                    ui.timer(0.1, callback=lambda: heater_2_state.update_text(telescope_manager.last_data.heater_2_driver_state, telescope_manager.last_data.heater_2_manual_state, telescope_manager.last_data.heater_2_real_state))
+                                            with ui.card().classes("w-full"):
+                                                ui.switch('Guidescope', on_change=(lambda e: telescope_manager.send_command(commsmanager.TelescopeCommand.HEATER_3_ENABLE if e.value == 1 else commsmanager.TelescopeCommand.HEATER_3_DISABLE)))
+                                                with ui.row().classes('w-full justify-between'):
+                                                    ui.label('State:')
+                                                    heater_3_state = customui.HeaterStateLabel()
+                                                    ui.timer(0.1, callback=lambda: heater_3_state.update_text(telescope_manager.last_data.heater_3_driver_state, telescope_manager.last_data.heater_3_manual_state, telescope_manager.last_data.heater_3_real_state))
+                                        temp_plot = customui.Plot(["Ambient", "Primary Mirror"]).classes("flex-grow")
+                                        ui.timer(1.0, callback=lambda: temp_plot.update_series([telescope_manager.last_data.temp_ref, telescope_manager.last_data.temp_1]))
                         #ui.timer(interval=1, callback=lambda: update_latest_photo(recent_image))
                         #ui.label("Sky Camera")
                     #self.sky_video = ui.interactive_image().classes('w-full h-full')
@@ -325,6 +335,9 @@ class UI:
         roof_manager.on_lowered(disable_roof_control)
         roof_manager.on_locked(disable_roof_control)
         roof_manager.on_unlocked(disable_roof_control)
+    
+
+
 
 
 def format_voltage(voltage):

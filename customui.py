@@ -6,6 +6,8 @@ from astropy.io import fits
 from PIL import Image
 import shutil
 import numpy as np
+import plotly.graph_objs as go
+import commsmanager
 
 class SelectableListItem(ui.button):
     def get_readable_time_since_last_modified(self, timestamp):
@@ -112,6 +114,131 @@ class FileBrowser(ui.list):
         
     def add_item():
         print("item added")
+
+class HeaterStateLabel(ui.label):
+    def __init__(self):
+        super().__init__("OFF")
+    
+    def update_text(self, driver_state: commsmanager.GenericControllerState, manual_state: commsmanager.GenericControllerState, real_state: commsmanager.HeaterState):
+        driver_state = commsmanager.GenericControllerState(driver_state)
+        manual_state = commsmanager.GenericControllerState(manual_state)
+        real_state = commsmanager.HeaterState(real_state)
+        if manual_state == commsmanager.GenericControllerState.STATE_ON:
+            self.text = "On (Manual)"
+        elif manual_state == commsmanager.GenericControllerState.STATE_OFF:
+            self.text = "Off (Manual)"
+        else:
+            if driver_state == commsmanager.GenericControllerState.STATE_ON:
+                if real_state == commsmanager.HeaterState.STATE_ON:
+                    self.text = "Heating"
+                if real_state == commsmanager.HeaterState.STATE_OFF:
+                    self.text = "Cooling"
+            else:
+                self.text = "Off"
+        self.update()
+
+class LensCapStateLabel(ui.label):
+    def __init__(self):
+        super().__init__("Closed")
+    
+    def update_text(self, driver_state: commsmanager.GenericControllerState, manual_state: commsmanager.GenericControllerState, real_state: commsmanager.GenericControllerState):
+        driver_state = commsmanager.GenericControllerState(driver_state)
+        manual_state = commsmanager.GenericControllerState(manual_state)
+        real_state = commsmanager.GenericControllerState(real_state)
+        if manual_state == commsmanager.GenericControllerState.STATE_ON:
+            self.text = "Open (Manual)"
+        elif manual_state == commsmanager.GenericControllerState.STATE_OFF:
+            self.text = "Closed (Manual)"
+        else:
+            if real_state == commsmanager.GenericControllerState.STATE_ON:
+                self.text = "Open"
+            else:
+                self.text = "Closed"
+        self.update()
+
+class FlatLightLabel(ui.label):
+    def __init__(self):
+        super().__init__("Off")
+    
+    def update_text(self, driver_state: commsmanager.GenericControllerState, manual_state: commsmanager.GenericControllerState, real_state: commsmanager.GenericControllerState):
+        driver_state = commsmanager.GenericControllerState(driver_state)
+        manual_state = commsmanager.GenericControllerState(manual_state)
+        real_state = commsmanager.GenericControllerState(real_state)
+        if manual_state == commsmanager.GenericControllerState.STATE_ON:
+            self.text = "On (Manual)"
+        elif manual_state == commsmanager.GenericControllerState.STATE_OFF:
+            self.text = "Off (Manual)"
+        else:
+            if real_state == commsmanager.GenericControllerState.STATE_ON:
+                self.text = "On"
+            else:
+                self.text = "Off"
+        self.update()
+
+
+class Plot(ui.plotly):
+    def __init__(self, series_labels):
+        self.temperature_graph = go.Figure()
+        self.x_data = []
+        self.y_data = []
+        for i, label in enumerate(series_labels):
+            self.y_data.append([])
+             # Adding the trace
+            self.temperature_graph.add_trace(go.Scatter(x=self.x_data, y=self.y_data[i], mode='lines', name=label))
+       
+
+        # Updating the layout to set the background color to transparent
+        self.temperature_graph.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',  # Transparent paper background
+            plot_bgcolor='rgba(0,0,0,0)',   # Transparent plot background
+            margin=dict(t=0, l=10, r=10, b=10),  # Remove top margin, adjust others as needed
+            height=400,
+            legend=dict(
+                font=dict(color='white'),  # Legend items font color
+                bgcolor='rgba(0,0,0,0)',  # Transparent legend background
+                orientation='h',  # Horizontal legend orientation
+                x=0.5,  # Center the legend horizontally
+                y=1,  # Position the legend below the plot
+                xanchor='center',  # Anchor legend position to center horizontally
+                yanchor='bottom'  # Anchor legend position to the top
+            ),
+
+            xaxis=dict(
+                title='Time', 
+                title_font=dict(color='white'),  # Axis title font color
+                tickfont=dict(color='white'),    # Axis tick font color
+                gridcolor='grey'  # Grid line color
+            ),
+                yaxis=dict(
+                title='Temperature (C)', 
+                title_font=dict(color='white'),  # Axis title font color
+                tickfont=dict(color='white'),    # Axis tick font color
+                gridcolor='grey'  # Grid line color
+            )
+        )
+        super().__init__(self.temperature_graph)
+        # Display the plot using NiceGUI
+    
+    def update_series(self, data):
+        if len(self.x_data) == 0:
+            self.x_data.append(0)
+        else:
+            self.x_data.append(self.x_data[-1]+1)
+        
+        for idx, point in enumerate(data):
+            self.y_data[idx].append(point)
+
+        if len(self.x_data) > 50:
+            for idx, element in enumerate(self.y_data):
+                self.y_data[idx].pop(0)
+            self.x_data.pop(0)
+
+        for idx, element in enumerate(self.y_data):
+            self.temperature_graph.data[idx].x = self.x_data
+            self.temperature_graph.data[idx].y = element
+
+        self.update()
+
 
 class FITSViewer(ui.image):
     def __init__(self) -> None:
